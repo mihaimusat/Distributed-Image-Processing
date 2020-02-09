@@ -1,0 +1,59 @@
+Musat Mihai-Robert
+Grupa 332CB
+
+========================================Tema 3 APD - Procesare de imagini folosind MPI========================================
+
+Pentru implementarea temei, m-am gandit mai intai sa imi creez mai multe structuri si functii ajutatoare pe care sa le folosesc
+pentru a usura modul in care vor comunica procesele intre ele atunci cand se va realiza prelucrarea propriu-zisa a imaginii.
+Astfel, in primul rand, mi-am creat o structura pentru a modela un pixel pentru imagini color(color_pixel), o structura pentru 
+un pixel pentru imagini alb-negru(gray_pixel), o structura pentru o imagine pgm sau pnm in care retin atat header-ul imaginii, 
+cat si o matrice de pixeli gray sau color in functie de tip.De asemenea, am declarat si filtrele ca matrici 3 x 3 constante de 
+elemente de tip float.Pentru a initializa mai usor elementele matricii filtru, am creat o functie auxiliarea getFilter, care
+primeste ca parametru numele unui tip de filtru si intoarce o valoare intreaga de la 1 la 5, iar pentru a roti matricea filtru
+cu 180 de grade in-place, am implementat functia auxiliara rotate_180.Citirea/scrierea unei imagini din/intr-un fisier al carui
+nume este dat ca parametru este realizata prin intermediul functiilor readImage, respectiv writeImage.
+
+Rezolvarea propriu-zisa a temei se afla in functia main, abordarea mea pornind de la un concept pe care l-am intalnit atat
+la curs, cat si la laborator pentru sistemele distribuite: un proces joaca rolul de Master, iar celelalte joaca rolul de 
+Workers, astfel ca dupa ce aceste procese vor termina bucata din task asignata, vor trimite rezultatul la Master pentru a
+asambla solutia finala.Astfel, dupa ce ma asigur ca programul este rulat cu numarul de argumente corespunzator, primul proces
+(care are rank = 0 si are rolul de Master), va citi fisierul de input si va pune datele in imaginea de input img.Dupa aceea, 
+copiez parametrii imaginii img(type, width, height si maxval) in imaginea result, deoarece acestea raman neschimbate, si in
+functie de tipul imaginii(alb-negru sau color) aloc si matricea de pixeli gray sau color pentru imaginea finala.Acum trebuie
+sa trimit fiecarui proces partea corespunzatoare din matrice pe care o va transforma.Pentru a realiza acest lucru, am trimis
+de la procesul cu rank 0 la toate celelalte procese tipul imaginii si dimensiunile acesteia.Am ales sa fac impartirea matricii
+pe linii, astfel ca dupa ce am impartit numarul de linii la numarul total de procese si am obtinut un interval egal pentru
+fiecare proces in parte, bucata de matrice trimisa va porni de la o linie de start si se va opri la o linie de final
+(proportionala cu indicele procesului i si cu intervalul calculat anterior).Pentru un proces care are rank-ul diferit de 0, 
+(care are rolul de Worker), am realizat o implementare simetrica a ceea ce am descris mai sus, deoarece trebuie sa primeasca
+datele trimise de Master, cu mentiunea ca am realizat si alocarile de memorie necesare, acolo unde a fost cazul.Acum toate 
+procesele au partea de matrice corespunzatoare, deci parcurg toate filtrele si actualizez din nou linia de start si cea de
+final in functie de intervalul [0, nProcesses - 1] in care se afla rank-ul procesului.Daca presupunem ca procesul curent
+este un proces care nu este unul dintre capetele intervalului (deci nu are rank = 0 sau rank = nProcesses - 1), am nevoie
+de ultima linie de deasupra (calculata de rank - 1) si prima linie de dedesubt (calculata de rank + 1) pentru a putea aplica
+filtrul.Daca rank-ul procesului este 0, atunci am nevoie doar de linia de dedesubt, iar daca rank-ul procesului este egal cu
+nProcesses - 1, am nevoie doar de linia de deasupra.Atunci cand calculez suma folosind pixelii vecini, am grija sa nu accesez
+un pixel care sa se afle in exteriorul matricii deoarece pixelii de pe margine nu au vecini.Dupa aceea, actualizez valoarea din
+matricea rezultat cu suma obtinuta in cazul in care aceasta este in intervalul (0, 255) si copiez matricea de pixeli obtinuta 
+in matricea de pixeli a imaginii initiale pentru a putea sa ii aplic filtrul urmator.Acest procedeu de aplicare a filtrului il
+aplic atat pentru o imagine alb-negru, cat si pentru o imagine color.In momentul in care am aplicat toate filtrele, toate
+procesele Workers trebuie sa ii trimita inapoi procesului Master (care are rank = 0) bucata de imagine pe care a prelucrat-o.
+In final, procesul Master asambleaza intreaga imagine si afiseaza rezultatul final al procesarii in imaginea result.
+
+Pentru a arata corectitudinea programului, am rulat scriptul pus pe forum (checker.sh) si primesc 60/60 pe masina locala.
+Acest lucru poate fi observat si in momentul in care se testeaza tema.In ceea ce priveste scalabilitatea programului, am rulat
+de mai multe ori pe masina locala cu un anumit numar de procese si am masurat timpul real folosind utilitarul time, 
+asa cum este descris pe forum si am obtinut urmatorii timpi:
+a) pentru cea mai mare imagine alb-negru(rorschach.pgm -> width: 3853 si height: 2000)
+	2 procese: 2.632s, 2.629s, 2.630s, 2.600s -> media: 2.622s
+	3 procese: 1.961s, 1.990s, 1.985s, 1.953s -> media: 1.972s
+	4 procese: 1.687s, 1.672s, 1.643s, 1.666s -> media: 1.667s
+
+b) pentru cea mai mare imagine color(landscape.pnm -> width: 3840 si height: 2160)
+	2 procese: 5.680s, 5.695s, 5.690s, 5.680s -> media: 5.686s
+	3 procese: 4.114s, 4.077s, 4.122s, 4.144s -> media: 4.114s
+	4 procese: 3.417s, 3.245s, 3.452s, 3.330s -> media: 3.361s
+
+Mentionez ca am 4 core-uri pe laptop si am testat pe bssembssem.
+
+
